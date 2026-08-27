@@ -1,7 +1,10 @@
+import asyncio
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+from telethon import TelegramClient, events
 
+# --- Render uchun Web Server (Doimiy ishni ta'minlash uchun) ---
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -14,55 +17,65 @@ def run_web_server():
     server.serve_forever()
 
 threading.Thread(target=run_web_server, daemon=True).start()
-import asyncio
-from telethon import TelegramClient, events
 
+# --- Telegram Userbot Sozlamalari ---
 API_ID = 35865950
 API_HASH = 'fcfd2a182ee4408ff03c04f05dfd87bd'
 
 client = TelegramClient('userbot_session', API_ID, API_HASH)
 
-ignored_chats = set()
+Ignored_chats = set()
 chat_timers = {}
 
+# Siz so'ragan mukammal va to'liq avto-javob matni:
 AUTO_REPLY_TEXT = (
-    "Salom! Men hozir bandman yoki xabaringizni ko'rmadim.\n"
-    "Tez orada javob beraman. Bu avtomatik xabar."
+    "Salom! Men hozir bandman, xabaringiz ko'rildi. Tez orada o'zim aloqaga chiqaman.\n\n"
+    "Agar juda zarur bo'lsa, shu raqamga aloqaga chiqing: +998900579196\n\n"
+    "Undan oldin ikkita kanalimga obuna bo'lib turing:\n"
+    "1️⃣ 1-kanalim: https://t.me/ongosti_uz\n"
+    "2️⃣ 2-kanalim: https://t.me/jahongirfootball"
 )
 
 @client.on(events.NewMessage(incoming=True))
 async def handle_incoming(event):
+    # Faqat shaxsiy (private) chatlarga ishlaydi
     if not event.is_private:
         return
 
     chat_id = event.chat_id
 
-    if chat_id in ignored_chats:
+    if chat_id in Ignored_chats:
         return
 
     if chat_id in chat_timers:
         chat_timers[chat_id].cancel()
 
     async def delayed_reply():
-        await asyncio.sleep(30)
-        await event.reply(AUTO_REPLY_TEXT)
+        await asyncio.sleep(30) # 30 soniya kutish
+        
+        # 1. Matnli xabarni yuborish
+        await event.respond(AUTO_REPLY_TEXT)
+        
+        # 2. Animatsiyali stiker yuborish (Telegramdagi tayyor animatsiyali stiker havolasi/fayli)
+        try:
+            # Bu yerga Telegramdagi istalgan animatsiyali stikerning to'g'ridan-to'g'ri havolasini qo'yish mumkin
+            await client.send_file(event.chat_id, 'https://t.me/addstickers/AnimatedStickers') 
+        except:
+            pass
+            
         chat_timers.pop(chat_id, None)
 
     chat_timers[chat_id] = asyncio.create_task(delayed_reply())
 
 @client.on(events.NewMessage(outgoing=True))
 async def handle_outgoing(event):
-    if event.is_private:
-        chat_id = event.chat_id
-        if chat_id in chat_timers:
-            chat_timers[chat_id].cancel()
-            chat_timers.pop(chat_id, None)
-        ignored_chats.add(chat_id)
+    # Agar siz o'zingiz xabar yozsangiz, taymer o'chadi (javob yuborilmaydi)
+    if not event.is_private:
+        return
+    chat_id = event.chat_id
+    if chat_id in chat_timers:
+        chat_timers[chat_id].cancel()
+        chat_timers.pop(chat_id, None)
 
-async def main():
-    print("Userbot muvaffaqiyatli ishga tushdi!")
-    await client.start()
-    await client.run_until_disconnected()
-
-if __name__ == '__main__':
-    asyncio.run(main())
+client.start()
+client.run_until_disconnected()
